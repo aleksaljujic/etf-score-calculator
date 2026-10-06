@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="sr-Latn">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>ETF rang-poeni za master</title>
+  <meta name="description" content="Izračunaj ponderisanu srednju ocenu p za upis na master studije ETF-a u Beogradu iz snimka ekrana položenih ispita.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>ETF rang-poeni za master</h1>
+    <p class="sub">Računa ponderisanu srednju ocenu <span class="num">p</span> za upis na master studije ETF-a u Beogradu (kandidati sa 240 ESPB). Pošalji snimak ekrana stranice „Položeni ispiti” sa studentskog portala i tabela se sama popuni.</p>
+  </header>
+
+  <section class="drop" id="drop" aria-labelledby="dropTitle">
+    <h2 id="dropTitle">Pošalji snimak ekrana položenih ispita</h2>
+    <p>Jedan dugačak snimak ili više delova. Čitaju se svi ispiti i ispitni rokovi. Predmeti sa ETF-a dobijaju godinu i semestar iz zvaničnog nastavnog plana; isprekidana polja su procene koje treba proveriti.</p>
+    <div class="row">
+      <label for="file" class="btn primary">Izaberi snimak ekrana</label>
+      <input type="file" id="file" accept="image/png,image/jpeg,image/webp" multiple hidden>
+      <button type="button" class="btn" id="stop" hidden>Prekini</button>
+      <span class="hint">ili prevuci ili nalepi sliku ovde</span>
+    </div>
+    <div class="thumbs" id="thumbs"></div>
+    <div class="status" id="status" role="status" aria-live="polite"></div>
+    <details id="pasteBox">
+      <summary>Ne može slika? Nalepi tabelu kao tekst</summary>
+      <div class="pastebody">
+        <p>Otvori stranicu položenih ispita u pregledaču, označi celu tabelu, kopiraj je i nalepi ovde. Ovo radi bez slanja slike.</p>
+        <textarea id="pasteText" rows="6" placeholder="1  140033  Projektovanje softvera  1  obavezan predmet  7  6  2025/26 septembar-OS  03.09.2026.  …"></textarea>
+        <div class="row">
+          <button type="button" class="btn primary" id="pasteGo">Popuni tabelu iz teksta</button>
+          <span class="status" id="pasteMsg" role="status"></span>
+        </div>
+      </div>
+    </details>
+  </section>
+
+  <section class="score" aria-live="polite">
+    <div>
+      <div class="label">Rang-poeni p</div>
+      <div class="big" id="p">–</div>
+      <div class="formula">p = Σ eᵢ(1+rᵢ)oᵢ / ESUM + (2 − M/M₀) − 2D</div>
+    </div>
+    <div class="parts">
+      <div class="part"><div class="v" id="wavg">–</div><div class="h">Ponderisani deo sa r</div></div>
+      <div class="part"><div class="v" id="plain">–</div><div class="h">Obična ponderisana prosečna ocena</div></div>
+      <div class="part"><div class="v" id="esum">–</div><div class="h">ESUM (ESPB)</div></div>
+      <div class="part"><div class="v" id="time">–</div><div class="h" id="timeH">Član za trajanje studija</div></div>
+      <div class="part"><div class="v" id="dpen">–</div><div class="h">Dodatni ispiti −2D</div></div>
+      <div class="part"><div class="v" id="rcount">–</div><div class="h">Ispiti sa r 0,2 / 0,1</div></div>
+    </div>
+  </section>
+
+  <section class="inputs">
+    <label class="field"><span class="label">Prva godina studija</span><select id="firstYear"></select></label>
+    <label class="field"><span class="label">Datum upisa</span><input type="date" id="enroll"><span class="hint">Obično 1. oktobar</span></label>
+    <label class="field"><span class="label">Datum diplomiranja</span><input type="date" id="grad"><span class="hint">Ili očekivani datum</span></label>
+    <label class="field"><span class="label">M₀ (nominalno meseci)</span><input type="number" id="m0" min="1" step="1"></label>
+    <label class="field"><span class="label">D (dodatni ispiti)</span><input type="number" id="d" min="0" step="1"></label>
+  </section>
+
+  <div class="note">
+    <b>Proveri pre nego što veruješ broju.</b> r važi samo ako je ispit položen u školskoj godini u kojoj se predmet sluša: zimski predmeti dobijaju 0,2 u januaru i 0,1 u februaru, letnji 0,2 u junu i 0,1 u julu. Dodaj završni rad dugmetom „Dodaj ispit” ako ga nema na snimku. Proveri M₀ i način računanja M u zvaničnom tekstu konkursa.
+    <span class="small">Nastavni planovi: ETF ER 2019 (prva godina i svih 6 modula) i Softversko inženjerstvo 2017. Izborni predmeti modula Energetika i ostali planovi ostaju procene.</span>
+  </div>
+
+  <section class="ledger">
+    <div class="ledger-head">
+      <h2>Položeni ispiti</h2>
+      <div class="row">
+        <button class="btn primary" id="add" type="button">Dodaj ispit</button>
+        <button class="btn" id="reset" type="button">Obriši sve</button>
+      </div>
+    </div>
+    <div class="legend"><span><span class="swatch"></span>Procena, proveri ili promeni</span></div>
+    <div class="tablebox">
+      <table>
+        <thead><tr>
+          <th>#</th><th>Predmet</th><th>ESPB</th><th>Ocena</th><th>Ispitni rok</th><th>Položen</th><th>Godina</th><th>Semestar</th><th>r</th><th>e·(1+r)·o</th><th><span class="sr">Ukloni</span></th>
+        </tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer class="foot">
+    Formula iz konkursa za upis na master akademske studije ETF-a 2026/27.
+    <a href="https://www.etf.bg.ac.rs/sr/upis/upis-kandidata-na-master-akademske-studije/studijski-program-elektrotehnika-i-racunarstvo" target="_blank" rel="noopener">Zvanični izvor</a>.
+    Slike se ne čuvaju.
+  </footer>
+</div>
+<script src="/app.js" defer></script>
+</body>
+</html>

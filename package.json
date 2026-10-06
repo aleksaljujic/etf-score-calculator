@@ -1,0 +1,28 @@
+{
+  "name": "etf-score-calculator",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "ETF Belgrade master admission ranking score calculator",
+  "scripts": {
+    "build": "esbuild src/app.ts --bundle --minify --format=iife --target=es2020 --outfile=public/app.js",
+    "dev": "vercel dev",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@upstash/ratelimit": "^2.2.0",
+    "@upstash/redis": "^1.39.0",
+    "openai": "^7.28.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "@vercel/node": "^21.0.0",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  }
+}
