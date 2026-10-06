@@ -214,3 +214,53 @@ const looksLikeCode = (t: string) => t.length >= 4 && /\d/.test(t) && /\p{L}/u.t
 
 export const cleanName = (s: string) =>
   toLatin(s.split(/\s+/).filter((t) => !looksLikeCode(t)).join(" ")).replace(/[|_“”"'`~^*<>[\]{}=+—–]/g, " ").replace(/\s+/g, " ").replace(/^[\s.,:;-]+|[\s.,:;-]+$/g, "").trim();
+
+/**
+ * Column layout without a header row (e.g. a zoomed screenshot that starts mid-table):
+ * columns are located from their typical content.
+ */
+export function inferLayout(words: OcrWord[], pageWidth: number): Layout | null {
+  const lineHeight = median(words.map((w) => w.y1 - w.y0)) || 10;
+  const t = (w: OcrWord) => w.text.replace(/\s/g, "");
+  const dateW = words.filter((w) => /\d{1,2}[.,]\d{1,2}[.,]?\d{4}|\d{2}\.?\d{2}\.?20\d{2}/.test(t(w)));
+  const yearW = words.filter((w) => /^20\d{2}\/?\d{2}$/.test(t(w)));
+  const typeW = words.filter((w) => ["izborni", "obavezan", "predmet"].some((k) => cer(normName(w.text), k) <= 0.25));
+  const codeW = words.filter((w) => /^\d{2}\p{L}\d{3}/u.test(t(w)) || /^\d{6}$/.test(t(w)));
+  if (dateW.length < 3 || yearW.length < 3) return null;
+  const xs = (ws: OcrWord[], f: (w: OcrWord) => number) => median(ws.map(f));
+  const rokLeft = xs(yearW, (w) => w.x0) - lineHeight * 0.5;
+  const datumLeft = Math.min(xs(dateW, (w) => w.x0), xs(yearW, (w) => w.x1) + lineHeight) - lineHeight * 0.5;
+  const datumRight = xs(dateW, (w) => w.x1) + lineHeight * 0.8;
+  const tipLeft = typeW.length >= 3 ? xs(typeW, (w) => w.x0) - lineHeight * 0.6 : rokLeft - lineHeight * 12;
+  const tipRight = typeW.length >= 3 ? xs(typeW, (w) => w.x1) + lineHeight * 0.8 : tipLeft + lineHeight * 5;
+  const codeRight = codeW.length >= 3 ? xs(codeW, (w) => w.x1) + lineHeight * 0.4 : tipLeft - lineHeight * 14;
+  // Between "tip" and "rok": Poeni, Ocena, ESPB. Ocena and ESPB are the two narrow columns right before Rok.
+  const numW = words.filter((w) => /^\d{1,2}$/.test(t(w)) && cx(w) > tipRight && cx(w) < rokLeft);
+  let espbX: number, ocenaX: number;
+  const centers = numW.map(cx).sort((a, b) => a - b);
+  const clusters: number[][] = [];
+  for (const c of centers) {
+    const last = clusters[clusters.length - 1];
+    if (last && c - last[last.length - 1] < lineHeight * 1.2) last.push(c); else clusters.push([c]);
+  }
+  const big = clusters.filter((c) => c.length >= 2).map((c) => median(c));
+  if (big.length >= 2) { espbX = big[big.length - 1]; ocenaX = big[big.length - 2]; }
+  else { const span = rokLeft - tipRight; espbX = rokLeft - span * 0.17; ocenaX = rokLeft - span * 0.45; }
+  const half = Math.min(lineHeight * 1.6, (espbX - ocenaX) / 2);
+  const col = (key: ColumnKey, left: number, right: number): Column => ({ key, x0: left, x1: right, left, right });
+  const nazivRight = tipLeft - lineHeight * 2.2; // the narrow "N.gr." column sits between Naziv and Tip
+  const columns: Column[] = [
+    col("akronim", 0, codeRight),
+    col("naziv", codeRight, nazivRight),
+    col("ngr", nazivRight, tipLeft),
+    col("tip", tipLeft, tipRight),
+    col("poeni", tipRight, ocenaX - half),
+    col("ocena", ocenaX - half, ocenaX + half),
+    col("espb", espbX - half, Math.min(espbX + half, rokLeft)),
+    col("rok", rokLeft, datumLeft),
+    col("datum", datumLeft, datumRight),
+    col("nastavnik", datumRight, pageWidth),
+  ];
+  const firstY = Math.min(...yearW.map((w) => w.y0), ...dateW.map((w) => w.y0));
+  return { columns, headerBottom: firstY - lineHeight * 2.5, lineHeight };
+}

@@ -10,7 +10,7 @@ import type { PastedRow } from "../parsePaste.js";
 import type { Period } from "../types.js";
 import { DigitTemplates, features, glyphs, toBitmap, type Bitmap } from "./digits.js";
 import {
-  assignCells, cellInt, cellText, cleanName, column, findLayout, findRowCenters, readAcadYear, readDate,
+  assignCells, cellInt, inferLayout, cellText, cleanName, column, findLayout, findRowCenters, readAcadYear, readDate,
   readFooterEcts, readMonth, type ColumnKey, type Layout, type OcrWord,
 } from "./layout.js";
 
@@ -258,8 +258,9 @@ export async function readScreenshot(engine: OcrEngine, img: ImageLike): Promise
   const page = prepare(engine, img);
   engine.progress?.("text");
   const words = await engine.recognize(page, { psm: "6" });
-  const layout = findLayout(words);
-  if (!layout) throw new OcrLayoutError("Zaglavlje tabele (Ocena, ESPB, Rok) nije pronađeno.");
+  const layout = findLayout(words) ?? inferLayout(words, page.width);
+  if (!layout) throw new OcrLayoutError("Tabela položenih ispita nije prepoznata na slici.");
+  engine.debug?.({ layout: layout.columns.map((c) => `${c.key}:${Math.round(c.left)}-${Math.round(c.right)}`).join(" "), lh: layout.lineHeight, page: page.width });
   const lh = layout.lineHeight;
 
   engine.progress?.("rows");

@@ -79,8 +79,46 @@ export function glyphs(bm: Bitmap): Box[] {
   return boxes.filter((b) => Math.abs((b.y0 + b.y1) / 2 - mid) <= hMax * 0.6);
 }
 
+/** Enclosed background regions ("holes") of a glyph: 8 has two, 0/6/9 one (6 low, 9 high), most others none. */
+export function holes(bm: Bitmap, b: Box): { count: number; lowest: number } {
+  const w = b.x1 - b.x0 + 3, h = b.y1 - b.y0 + 3;
+  const ink = (x: number, y: number) => {
+    const gx = x + b.x0 - 1, gy = y + b.y0 - 1;
+    return gx >= b.x0 && gx <= b.x1 && gy >= b.y0 && gy <= b.y1 && bm.bits[gy * bm.w + gx] === 1;
+  };
+  const seen = new Uint8Array(w * h);
+  const fill = (sx: number, sy: number) => {
+    const st = [sx + sy * w]; seen[st[0]] = 1; let n = 0, ysum = 0;
+    while (st.length) {
+      const q = st.pop()!; const x = q % w, y = (q / w) | 0; n++; ysum += y;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+        const r = ny * w + nx;
+        if (!seen[r] && !ink(nx, ny)) { seen[r] = 1; st.push(r); }
+      }
+    }
+    return { n, cy: ysum / Math.max(1, n) };
+  };
+  fill(0, 0); // outside background
+  let count = 0, lowest = 0;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const r = y * w + x;
+    if (seen[r] || ink(x, y)) continue;
+    const region = fill(x, y);
+    if (region.n >= 2) { count++; lowest = Math.max(lowest, region.cy / h); }
+  }
+  return { count, lowest };
+}
+
+const HOLES: Record<string, (hl: { count: number; lowest: number }) => boolean> = {
+  "0": (x) => x.count === 1, "1": (x) => x.count === 0, "2": (x) => x.count === 0, "3": (x) => x.count === 0,
+  "4": (x) => x.count <= 1, "5": (x) => x.count === 0, "6": (x) => x.count === 1 && x.lowest > 0.5,
+  "7": (x) => x.count === 0, "8": (x) => x.count === 2, "9": (x) => x.count === 1 && x.lowest < 0.5,
+};
+
 /** Resample a glyph to a fixed NW×NH grid of ink coverage (0..1), plus its aspect ratio. */
-export function features(bm: Bitmap, b: Box): { v: Float32Array; aspect: number } {
+export function features(bm: Bitmap, b: Box): { v: Float32Array; aspect: number; holes?: { count: number; lowest: number } } {
   const v = new Float32Array(NW * NH);
   const gw = b.x1 - b.x0 + 1, gh = b.y1 - b.y0 + 1;
   for (let y = b.y0; y <= b.y1; y++) {
@@ -93,7 +131,7 @@ export function features(bm: Bitmap, b: Box): { v: Float32Array; aspect: number 
   }
   const cellArea = (gw / NW) * (gh / NH);
   for (let i = 0; i < v.length; i++) v[i] = Math.min(1, v[i] / cellArea);
-  return { v, aspect: gw / gh };
+  return { v, aspect: gw / gh, holes: holes(bm, b) };
 }
 
 export class DigitTemplates {
@@ -119,7 +157,7 @@ export class DigitTemplates {
   has(d: string) { return this.sum.has(d); }
 
   /** Best digit for a glyph and its distance (lower is better). */
-  classify(f: { v: Float32Array; aspect: number }): { digit: string; dist: number } | null {
+  classify(f: { v: Float32Array; aspect: number; holes?: { count: number; lowest: number } }): { digit: string; dist: number } | null {
     let best: { digit: string; dist: number } | null = null;
     for (const [digit, t] of this.sum) {
       let d = 0;
