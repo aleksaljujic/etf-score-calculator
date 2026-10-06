@@ -40,7 +40,6 @@ export interface ExtractedRow {
 }
 
 export interface ExtractResponse {
-  faculty: string;
   rows: ExtractedRow[];
   footer: { avg: number | null; ects: number | null };
 }

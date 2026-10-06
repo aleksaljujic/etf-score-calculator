@@ -4,7 +4,6 @@ import { memoryLimiter } from "../lib/server/rateLimit.js";
 
 const img = (bytes = 30) => ({ type: "image/jpeg", data: Buffer.alloc(bytes, 1).toString("base64") });
 const goodReply = JSON.stringify({
-  faculty: "ETF",
   rows: [{ rb: 1, name: "Matematika 1", ects: 6, grade: 9, period: "januar", acadYear: 2021, studyYear: 1, semester: "W", sureSemester: true }],
   footer: { avg: 9, ects: 6 },
 });

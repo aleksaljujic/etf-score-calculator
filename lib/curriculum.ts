@@ -66,18 +66,12 @@ const semOf = (s: number) => (s % 2 ? "W" : "S") as "W" | "S";
 export interface CurriculumResult { program: string | null; matched: number }
 
 /**
- * Fill study year / semester from the ETF curriculum. Mutates rows.
- * Skips non-ETF students (other faculties have different curricula).
+ * Fill study year / semester from the ETF curriculum (the app is for ETF students only). Mutates rows.
  */
-export function applyCurriculum(rows: ExamRow[], faculty = ""): CurriculumResult {
+export function applyCurriculum(rows: ExamRow[]): CurriculumResult {
   const hits = rows.map((r) => candidates(r.name));
   const withHit = hits.filter((h) => h.length).length;
-  // Trust a named faculty; otherwise require most subjects to be ETF subjects (other faculties share some names).
-  const named = faculty.trim();
-  const isEtf = named
-    ? /etf|elektrotehni/i.test(named)
-    : rows.length >= 5 && withHit >= rows.length * 0.75;
-  if (!isEtf || !withHit) return { program: null, matched: 0 };
+  if (!withHit) return { program: null, matched: 0 };
 
   // Score each program by how many rows it explains; ER modules share the ER first-year list.
   const programs = Object.keys(CURRICULUM.programs).filter((p) => p !== FIRST_YEAR_ER);

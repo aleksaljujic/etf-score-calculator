@@ -36,26 +36,12 @@ describe("applyCurriculum", () => {
   ];
   it("picks the RTI module and corrects guesses", () => {
     const rows = rti();
-    const res = applyCurriculum(rows, "ETF");
+    const res = applyCurriculum(rows);
     expect(res.program).toBe("ETF ER 2019 – Računarska tehnika i informatika");
     expect(rows[0]).toMatchObject({ sy: 1, sem: "W", syGuess: false, semGuess: false });
     expect(rows[3]).toMatchObject({ sy: 2, sem: "W", semGuess: false }); // Signali i sistemi = semester 3 in RTI
     expect(rows[7]).toMatchObject({ syGuess: true, semGuess: true }); // unknown subject stays a guess
     expect(res.matched).toBe(7);
-  });
-  it("detects ETF from the subjects when no faculty is named", () => {
-    const rows = rti();
-    expect(applyCurriculum(rows, "").program).toBe("ETF ER 2019 – Računarska tehnika i informatika");
-  });
-  it("does not treat a few shared subject names as ETF", () => {
-    const rows = [row("Projektovanje softvera"), row("Inteligentni sistemi"), row("Matematika 3"), row("Marketing"), row("Psihologija")];
-    expect(applyCurriculum(rows, "").program).toBeNull();
-  });
-  it("leaves a non-ETF (FON) list alone", () => {
-    const rows = [row("Psihologija", 1, "W"), row("Marketing", 2, "S"), row("Matematika 1", 1, "S"), row("Operaciona istraživanja 1", 2, "W")];
-    const res = applyCurriculum(rows, "FON");
-    expect(res.program).toBeNull();
-    expect(rows[2]).toMatchObject({ sem: "S", semGuess: true });
   });
 });
 
@@ -69,11 +55,10 @@ describe("import pipeline", () => {
     expect(res.rows[0]).toMatchObject({ sy: 1, sem: "W", syGuess: true, semGuess: true });
     expect(res.rows[1]).toMatchObject({ sy: 3, sem: "S" });
   });
-  it("keeps the model's sure semester as confirmed", () => {
+  it("keeps the model's sure semester for a subject outside the curriculum", () => {
     const res = importExtraction({
-      faculty: "FON",
       footer: { avg: null, ects: 6 },
-      rows: [{ rb: 1, name: "Ekonomija", ects: 6, grade: 10, period: "jun", acadYear: 2021, date: null, studyYear: 1, semester: "S", sureSemester: true }],
+      rows: [{ rb: 1, name: "Izborni predmet van plana", ects: 6, grade: 10, period: "jun", acadYear: 2021, date: null, studyYear: 1, semester: "S", sureSemester: true }],
     });
     expect(res.rows[0]).toMatchObject({ sy: 1, sem: "S", semGuess: false, syGuess: true });
     expect(res.footerEcts).toBe(6);
