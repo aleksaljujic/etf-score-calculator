@@ -24,22 +24,3 @@ export interface AppState {
   d: number;
   rows: ExamRow[];
 }
-
-/** Row shape returned by /api/extract. */
-export interface ExtractedRow {
-  rb: number | null;
-  name: string;
-  ects: number;
-  grade: number;
-  period: Period;
-  acadYear: number | null;
-  date: string | null;
-  studyYear: number | null;
-  semester: Semester | null;
-  sureSemester: boolean;
-}
-
-export interface ExtractResponse {
-  rows: ExtractedRow[];
-  footer: { avg: number | null; ects: number | null };
-}

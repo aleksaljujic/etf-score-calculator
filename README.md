@@ -2,7 +2,7 @@
 
 Web app that calculates the ranking score **p** for master admission at ETF Belgrade (Elektrotehnički fakultet, Univerzitet u Beogradu) for candidates with 240 ECTS.
 
-A student uploads a screenshot of the "Položeni ispiti" page from ETF eStudent. The app is for ETF students only. A serverless function sends it to an Azure OpenAI vision model, which returns every exam as JSON. The app looks up each subject's year and semester in the official ETF curriculum, computes the stimulation factor r from when each exam was passed, and calculates p. Without a screenshot, the student can paste the copied table as text; that path needs no API.
+A student uploads one or more screenshots of the "Položeni ispiti" page from ETF eStudent. The table is read **in the browser** with Tesseract.js (Serbian Cyrillic), nothing is sent to a server and no API key is needed. The app finds the columns (from the header, or from the content when the header is cut off), reads grades and ECTS by matching digit shapes learned from the dates, corrects course names by character error rate (CER) against the official ETF curriculum, looks up each subject's year and semester, computes the stimulation factor r, and calculates p. Students can also paste the copied table as text. The app is for ETF students only.
 
 ```
 p = Σ eᵢ(1+rᵢ)oᵢ / ESUM + (2 − M/M₀) − 2D
@@ -17,51 +17,41 @@ Source: [ETF master admission 2026/27](https://www.etf.bg.ac.rs/sr/upis/upis-kan
 
 | Path | What it is |
 | --- | --- |
-| `public/` | Static frontend (`index.html`, `styles.css`; `app.js` is built) |
-| `src/app.ts` | Frontend logic, bundled with esbuild into `public/app.js` |
-| `api/extract.ts` | Vercel function `POST /api/extract` |
+| `public/` | Static site (`index.html`, `styles.css`; `app.js` and `tesseract/` are built) |
+| `src/app.ts`, `src/ocrEngine.ts` | Frontend and the browser OCR engine wrapper |
+| `lib/ocr/` | OCR pipeline: preprocessing, column layout, digit templates |
+| `lib/fuzzy.ts` | Levenshtein / CER matching of course names |
 | `lib/formula.ts` | Score, r and M calculation |
 | `lib/curriculum.ts`, `lib/curriculumData.ts` | ETF curriculum data and subject lookup |
 | `lib/parsePaste.ts` | Parser for the copied exam table |
-| `lib/extract.ts` | Extraction prompt, model JSON parsing and validation |
-| `lib/server/` | Request handling, Azure OpenAI client, rate limiting |
+| `scripts/copy-tesseract.mjs` | Copies Tesseract.js, its WebAssembly core and Serbian data into `public/tesseract` |
+| `scripts/ocr-check.ts` | Runs the same OCR pipeline in Node on a screenshot (`npm run ocr:check -- <image>`) |
 | `tests/` | Vitest tests |
+
+## Accuracy
+
+Measured against the real tables:
+
+| Screenshot | Rows | Grades | ECTS |
+| --- | --- | --- | --- |
+| ETF, zoomed, header cut off (918 px wide JPEG) | 41/45 | 41/41 | 41/41 |
+| Full-resolution phone screenshot (1179 px PNG) | 43/43 | 43/43 | 43/43 |
+
+Heavily compressed images (e.g. ~900 px wide with the whole page) are not readable reliably; the app asks for the original screenshot or zoomed parts. When the summed ECTS differs from the page footer, the app warns the student to check the table.
 
 ## Curriculum coverage
 
-ETF ER 2019 (shared first year + all 6 modules) and ETF Softversko inženjerstvo 2017, i.e. students who enrolled roughly 2019–2022. Energetika electives (semesters 5–8 without a fixed semester), older or newer curricula, and other faculties fall back to the model's guess, shown as dashed fields for the student to check.
+ETF ER 2019 (shared first year + all 6 modules) and ETF Softversko inženjerstvo 2017. Energetika electives (semesters 5–8 without a fixed semester) and subjects from other curricula stay as dashed guesses.
 
 ## Local development
 
 ```bash
 npm install
-cp .env.example .env.local   # fill in the Azure values
 npm test
 npm run build
-npx vercel dev               # http://localhost:3000
+npx serve public        # or any static server
 ```
 
 ## Deploy on Vercel
 
-1. In Vercel: **Add New → Project → Import** this GitHub repository. Framework preset: **Other**. The build command and output directory come from `vercel.json`.
-2. **Settings → Environment Variables**, add:
-   - `AZURE_OPENAI_ENDPOINT` — e.g. `https://<resource>.openai.azure.com`
-   - `AZURE_OPENAI_API_KEY`
-   - `AZURE_OPENAI_DEPLOYMENT` — a deployment of a model that accepts images
-   - `AZURE_OPENAI_API_VERSION` — e.g. `2024-10-21` (use one your resource supports)
-   - optional `AZURE_OPENAI_TEMPERATURE=0` for models that accept temperature
-3. Recommended: add **Upstash Redis** from the Vercel Marketplace (Storage tab). It sets `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` (or `KV_REST_API_URL` / `KV_REST_API_TOKEN`), which enables a shared per-IP rate limit. Without it, a per-instance in-memory limit is used.
-4. Redeploy. Every push to `main` deploys; pull requests get preview URLs.
-
-The API key lives only in Vercel's environment variables. It is never sent to the browser or committed.
-
-## Cost and abuse protection
-
-Every screenshot is one vision call billed to your Azure subscription.
-
-- Per-IP rate limit: `RATE_LIMIT_REQUESTS` per `RATE_LIMIT_WINDOW_SECONDS` (default 5 per 10 minutes).
-- Up to `MAX_IMAGES` (8) images, `MAX_IMAGE_BYTES` each and `MAX_TOTAL_BYTES` total. The browser slices long screenshots and compresses them to about 3 MB so requests stay under Vercel's ~4.5 MB body limit.
-- Cross-site POSTs are rejected (Origin must match the host).
-- Upstream call times out after `MODEL_TIMEOUT_MS` (55 s); the function's `maxDuration` is 60 s in `vercel.json`.
-- Set a budget alert on the Azure subscription and a tokens-per-minute limit on the deployment.
-- Images and results are not stored or logged.
+Import the repository in Vercel (preset **Other**). `vercel.json` sets the build command and the `public` output directory. No environment variables are needed. The OCR files (about 5 MB on first use, then cached by the browser) are served from the site itself.

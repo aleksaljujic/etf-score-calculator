@@ -1,7 +1,10 @@
 import { computeScore, type RReason } from "../lib/formula.js";
-import { importExtraction, importPasted, type ImportResult } from "../lib/importRows.js";
+import { importPasted, type ImportResult } from "../lib/importRows.js";
+import { OcrLayoutError, readScreenshot, type ImageLike, type OcrRow } from "../lib/ocr/pipeline.js";
+import { normName } from "../lib/text.js";
+import { browserEngine, stopOcr } from "./ocrEngine.js";
 import { parsePastedTable } from "../lib/parsePaste.js";
-import { PERIODS, type AppState, type ExamRow, type ExtractResponse } from "../lib/types.js";
+import { PERIODS, type AppState, type ExamRow } from "../lib/types.js";
 
 const KEY = "etf-score-v1";
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -154,7 +157,7 @@ function setStatus(text: string, cls: "" | "ok" | "bad" = "") {
   s.className = "status " + cls;
 }
 
-function applyImport(res: ImportResult) {
+function applyImport(res: ImportResult, skipped = 0) {
   state.rows = res.rows;
   state.firstYear = res.firstYear;
   state.enroll = `${res.firstYear}-10-01`;
@@ -166,6 +169,7 @@ function applyImport(res: ImportResult) {
     msg += ` ${res.curriculum.matched} od ${res.rows.length} predmeta pronađeno u planu „${res.curriculum.program.replace(/ \(.*\)$/, "")}”.`;
   }
   const guesses = res.rows.some((r) => r.syGuess || r.semGuess) ? " Proveri isprekidana polja, to su procene." : "";
+  if (skipped) msg += ` ${skipped} red(ova) nije moglo da se pročita; dodaj ih ručno.`;
   if (res.footerEcts && res.footerEcts !== esum) {
     setStatus(`${msg} Na snimku piše ${res.footerEcts} ESPB, pa možda nedostaje ili je pogrešno pročitan neki red. Proveri tabelu.${guesses}`, "bad");
   } else {
@@ -174,64 +178,22 @@ function applyImport(res: ImportResult) {
   $("p").scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
-/* ---------- screenshot upload ---------- */
-const MAX_PIECES = 8;
-const TARGET_TOTAL = 3_000_000; // decoded bytes; keeps the request under Vercel's ~4.5 MB limit
+/* ---------- screenshot reading (OCR in the browser) ---------- */
+const STEP: Record<string, string> = {
+  prepare: "Pripremam sliku",
+  text: "Čitam tabelu",
+  rows: "Tražim redove",
+  numbers: "Čitam ocene, ESPB i rokove",
+};
+let running = false;
+let cancelled = false;
 
-async function loadBitmap(file: File): Promise<ImageBitmap> {
-  return await createImageBitmap(file);
-}
-
-function sliceRects(W: number, H: number, maxPieces: number) {
-  const overlap = Math.round(W * 0.08);
-  let sliceH = Math.round(W * 0.9);
-  let n = Math.max(1, Math.ceil((H - overlap) / (sliceH - overlap)));
-  if (n > maxPieces) { n = maxPieces; sliceH = Math.ceil((H + overlap * (n - 1)) / n); }
-  const h = Math.min(sliceH, H);
-  return Array.from({ length: n }, (_, i) => ({ y: Math.max(0, Math.min(H - h, i * (sliceH - overlap))), h }));
-}
-
-function toBlob(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
-  return new Promise((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error("encode"))), "image/jpeg", quality));
-}
-
-async function prepareImages(files: File[]): Promise<Blob[]> {
-  const bitmaps = await Promise.all(files.map(loadBitmap));
-  const per = Math.max(1, Math.floor(MAX_PIECES / bitmaps.length));
-  const pieces: { bmp: ImageBitmap; y: number; h: number }[] = [];
-  for (const bmp of bitmaps) for (const r of sliceRects(bmp.width, bmp.height, per)) pieces.push({ bmp, ...r });
-  const use = pieces.slice(0, MAX_PIECES);
-  // Try decreasing quality, then width, until the total fits.
-  const attempts: [number, number][] = [[1400, 0.85], [1400, 0.72], [1200, 0.7], [1100, 0.62], [1000, 0.55], [900, 0.5]];
-  for (const [maxW, q] of attempts) {
-    const blobs: Blob[] = [];
-    for (const p of use) {
-      const scale = Math.min(1, maxW / p.bmp.width);
-      const c = document.createElement("canvas");
-      c.width = Math.round(p.bmp.width * scale);
-      c.height = Math.round(p.h * scale);
-      c.getContext("2d")!.drawImage(p.bmp, 0, p.y, p.bmp.width, p.h, 0, 0, c.width, c.height);
-      blobs.push(await toBlob(c, q));
-    }
-    if (blobs.reduce((s, b) => s + b.size, 0) <= TARGET_TOTAL) return blobs;
-  }
-  throw new Error("too_large");
-}
-
-function blobToBase64(b: Blob): Promise<string> {
-  return new Promise((res, rej) => {
-    const r = new FileReader();
-    r.onload = () => res(String(r.result).split(",")[1] ?? "");
-    r.onerror = () => rej(r.error);
-    r.readAsDataURL(b);
-  });
-}
-
-let ctl: AbortController | null = null;
+const rowKey = (r: OcrRow) => `${normName(r.name)}|${r.ay}|${r.period}|${r.grade}|${r.ects}`;
 
 async function handleFiles(list: FileList | File[]) {
-  const files = [...list].filter((f) => /^image\/(png|jpeg|webp)$/.test(f.type));
-  if (!files.length) { setStatus("Izaberi PNG, JPG ili WebP snimak ekrana.", "bad"); return; }
+  const files = [...list].filter((f) => /^image\//.test(f.type));
+  if (!files.length) { setStatus("Izaberi sliku (PNG ili JPG snimak ekrana).", "bad"); return; }
+  if (running) return;
   const thumbs = $("thumbs");
   thumbs.innerHTML = "";
   for (const f of files) {
@@ -240,42 +202,45 @@ async function handleFiles(list: FileList | File[]) {
     im.src = URL.createObjectURL(f);
     thumbs.append(im);
   }
-  setStatus("Pripremam slike…");
-  let blobs: Blob[];
-  try {
-    blobs = await prepareImages(files);
-  } catch (e) {
-    setStatus((e as Error).message === "too_large"
-      ? "Slika je prevelika i posle smanjivanja. Pošalji kraći snimak ili ga podeli na dva dela."
-      : "Slika ne može da se otvori. Probaj PNG ili JPG snimak ekrana.", "bad");
-    return;
-  }
-  const images = await Promise.all(blobs.map(async (b) => ({ type: "image/jpeg", data: await blobToBase64(b) })));
-
-  ctl = new AbortController();
+  running = true;
+  cancelled = false;
   $("stop").hidden = false;
-  setStatus("Čitam ispite… obično traje 20–60 sekundi.");
+  const rows: OcrRow[] = [];
+  const seen = new Set<string>();
+  let footer: number | null = null;
+  let skipped = 0;
   try {
-    const res = await fetch("/api/extract", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ images }),
-      signal: ctl.signal,
-    });
-    const body = await res.json().catch(() => null);
-    if (!res.ok) {
-      const wait = res.headers.get("Retry-After");
-      setStatus((body?.message as string) || `Greška ${res.status}. Pokušaj ponovo.` + (wait ? ` (sačekaj ${wait} s)` : ""), "bad");
-      if (res.status >= 500) $<HTMLDetailsElement>("pasteBox").open = true;
+    for (let i = 0; i < files.length; i++) {
+      const prefix = files.length > 1 ? `Slika ${i + 1}/${files.length}: ` : "";
+      setStatus(prefix + "Učitavam OCR (prvi put oko 5 MB)…");
+      const bmp = await createImageBitmap(files[i]);
+      if (bmp.width < 700) {
+        setStatus(`${prefix}Slika je premala (${bmp.width} px). Pošalji originalni snimak ili zumiraj tabelu.`, "bad");
+        continue;
+      }
+      const engine = browserEngine((step) => setStatus(prefix + (STEP[step] ?? "Čitam") + "…"));
+      const res = await readScreenshot(engine, bmp as unknown as ImageLike);
+      if (cancelled) return;
+      for (const r of res.rows) { const k = rowKey(r); if (!seen.has(k)) { seen.add(k); rows.push(r); } }
+      footer = res.footerEcts ?? footer;
+      skipped += res.skipped;
+    }
+    if (!rows.length) {
+      setStatus("Na slici nije pronađen nijedan ispit. Pošalji jasniji snimak tabele „Položeni ispiti” ili nalepi tabelu kao tekst.", "bad");
+      $<HTMLDetailsElement>("pasteBox").open = true;
       return;
     }
-    applyImport(importExtraction(body as ExtractResponse));
+    applyImport(importPasted(rows, footer), skipped);
   } catch (e) {
-    if ((e as Error).name === "AbortError") setStatus("Prekinuto.");
-    else { setStatus("Nema veze sa serverom. Proveri internet i pokušaj ponovo, ili nalepi tabelu kao tekst.", "bad"); $<HTMLDetailsElement>("pasteBox").open = true; }
+    if (cancelled) { setStatus("Prekinuto."); return; }
+    const msg = e instanceof OcrLayoutError ? e.message : (e as Error)?.message === "ocr_load"
+      ? "OCR nije mogao da se učita. Proveri internet i pokušaj ponovo."
+      : "Čitanje slike nije uspelo. Pokušaj sa drugim snimkom ili nalepi tabelu kao tekst.";
+    setStatus(msg, "bad");
+    $<HTMLDetailsElement>("pasteBox").open = true;
   } finally {
+    running = false;
     $("stop").hidden = true;
-    ctl = null;
   }
 }
 
@@ -284,7 +249,7 @@ $("file").addEventListener("change", (e) => {
   if (input.files) handleFiles(input.files);
   input.value = "";
 });
-$("stop").addEventListener("click", () => ctl?.abort());
+$("stop").addEventListener("click", () => { cancelled = true; void stopOcr(); });
 const drop = $("drop");
 for (const ev of ["dragenter", "dragover"]) drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); });
 for (const ev of ["dragleave", "drop"]) drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("over"); });

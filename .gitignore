@@ -5,3 +5,4 @@ public/app.js
 .env*.local
 .vercel/
 coverage/
+public/tesseract/
