@@ -9,8 +9,8 @@ Extract EVERY exam row exactly once (slices overlap; use the row number to avoid
 For each row also GUESS which study year (1-4) and semester the course belongs to in the curriculum: use your knowledge of the faculty's curriculum (identify the faculty from the page header if possible), the course name (e.g. "Математика 1" is year 1 winter, "2" usually summer), and when it was passed. Winter semester exams are first held in januar, summer semester exams in jun. A course passed late (jul, septembar, oktobar or in a later year) still belongs to its original semester. Set "sureSemester" true only if you are fairly confident.
 
 Reply with ONLY this JSON:
-{"faculty":"short name or empty","rows":[{"rb":1,"name":"course name transliterated to Serbian Latin","ects":6,"grade":7,"period":"januar|februar|april|jun|jul|septembar|oktobar|novembar","acadYear":2025,"date":"2026-09-03","studyYear":4,"semester":"W|S","sureSemester":false}],"footer":{"avg":8.74,"ects":231}}
-acadYear is the FIRST year of the academic year in the Рок column (2025/26 -> 2025). Use null for anything unreadable.
+{"faculty":"short name or empty","rows":[{"rb":1,"name":"course name transliterated to Serbian Latin","ects":6,"grade":7,"period":"januar|februar|april|jun|jul|avgust|septembar|oktobar|novembar|decembar","acadYear":2025,"date":"2026-09-03","studyYear":4,"semester":"W|S","sureSemester":false}],"footer":{"avg":8.74,"ects":231}}
+acadYear is the FIRST year of the academic year in the Рок column (2025/26 -> 2025). Numbered periods like "октобар 2" or "септембар 2" are just the month ("oktobar", "septembar"). Use null for anything unreadable.
 
 If the screenshot is from ETF Beograd (Elektrotehnički fakultet), use this official curriculum to set studyYear and semester. First decide which program/module best matches the student's courses, then look each course up in it (ETF ER students share the 1. godina list). For matches set sureSemester true.
 `;

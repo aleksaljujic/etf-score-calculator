@@ -1,0 +1,45 @@
+1 13E054OPG Obrada i prepoznavanje govora 1 izborni predmet 7 6 2025/26 avgust 04.09.2026.
+2 13E054PO Prepoznavanje oblika 1 izborni predmet 7 6 2025/26 avgust 04.09.2026.
+3 13E054VI Veštačka inteligencija 1 izborni predmet 6 6 2024/25 oktobar 3 30.10.2025.
+4 19E033MAP Mrežna administracija i programiranje 1 izborni predmet 10 6 2024/25 oktobar 2 27.10.2025.
+5 13E114IP Internet programiranje 1 izborni predmet 9 6 2024/25 oktobar 2 28.10.2025.
+6 13E054NM Neuralne mreže 1 izborni predmet 8 6 2024/25 oktobar 1 14.10.2025.
+7 13E044DOS Digitalna obrada slike 1 izborni predmet 73,00 8 6 2024/25 septembar 2 27.09.2025.
+8 13E054URV Upravljanje u realnom vremenu 1 obavezan predmet 7 6 2024/25 septembar 2 06.10.2025.
+9 13E053SOM Sistemi odlučivanja u medicini 1 izborni predmet 9 6 2023/24 septembar 18.09.2024.
+10 13E013UPE Upravljanje elektromotornim pogonima 1 izborni predmet 8 6 2023/24 avgust 04.09.2024.
+11 13E053SAU2 Sistemi automatskog upravljanja 2 1 obavezan predmet 9 6 2023/24 avgust 28.08.2024.
+12 13E112ASP Algoritmi i strukture podataka 1 izborni predmet 8 6 2023/24 avgust 24.08.2024.
+13 13E053RA Robotika i automatizacija 1 izborni predmet 10 6 2023/24 jul 05.07.2024.
+14 13E082DIF Diferencijalne jednačine 1 izborni predmet 10 3 2023/24 jul 30.06.2024.
+15 13E052PSA Praktikum iz softverskih alata 1 izborni predmet 10 3 2023/24 jun 06.06.2024.
+16 13E053SSE Stohastički sistemi i estimacija 1 obavezan predmet 6 6 2023/24 februar 02.02.2024.
+17 13E053SAU1 Sistemi automatskog upravljanja 1 1 obavezan predmet 7 6 2023/24 februar 11.02.2024.
+18 13E053PDO Praktikum iz digitalne obrade signala 1 izborni predmet 7 3 2023/24 februar 06.02.2024.
+19 13E053DOS Digitalna obrada signala 1 obavezan predmet 9 6 2023/24 februar 06.02.2024.
+20 13E083MOAR Matematičke osnove automatskog rezonovanja 1 izborni predmet 10 3 2023/24 januar 14.01.2024.
+21 13E032OTC Osnovi telekomunikacija 1 obavezan predmet 10 6 2022/23 septembar 11.09.2023.
+22 13E082VS Verovatnoća i statistika 1 izborni predmet 8 6 2022/23 avgust 26.08.2023.
+23 13E082NUM Numerička matematika 1 izborni predmet 10 3 2022/23 jul 28.06.2023.
+24 13E042OD Osnovi digitalne elektronike 1 obavezan predmet 8 6 2022/23 jul 05.07.2023.
+25 13E052SIS Signali i sistemi 1 obavezan predmet 10 6 2022/23 jun 16.06.2023.
+26 13E082SAO Složenost algoritama i odabrane metode optimizacije 1 izborni predmet 10 3 2022/23 jun 18.06.2023.
+27 13E082M3 Matematika 3 1 obavezan predmet 9 6 2022/23 februar 04.02.2023.
+28 19E112OOP Objektno orijentisano programiranje 1 izborni predmet 9 6 2022/23 januar 27.01.2023.
+29 19E052EM Električna merenja 1 izborni predmet 10 6 2022/23 januar 20.01.2023.
+30 19E042OAE Osnovi analogne elektronike 1 obavezan predmet 83,00 9 6 2022/23 januar 24.01.2023.
+31 13E072OTEK Teorija električnih kola 2 obavezan predmet 10 6 2022/23 januar 21.01.2023.
+32 19E061F1 Fizika 1 4 obavezan predmet 8 6 2021/22 avgust 30.08.2022.
+33 19E111ORT Osnovi računarske tehnike 1 izborni predmet 9 6 2021/22 avgust 23.08.2022.
+34 19E111P1 Programiranje 1 3 obavezan predmet 10 6 2021/22 avgust 24.08.2022.
+35 19E081MM2 Matematika 2 3 obavezan predmet 8 6 2021/22 jul 03.07.2022.
+36 13E071LOE Laboratorijske vežbe iz Osnova elektrotehnike 1 obavezan predmet 10 2 2021/22 jun 10.06.2022.
+37 13E091EJ2 Engleski jezik 2 1 izborni predmet 10 2 2021/22 jun 11.06.2022.
+38 13E091UM Uvod u menadžment 1 izborni predmet 10 2 2021/22 jun 07.06.2022.
+39 19E071OE2 Osnovi elektrotehnike 2 3 obavezan predmet 9 6 2021/22 jun 19.06.2022.
+40 19E111P2 Programiranje 2 3 obavezan predmet 10 6 2021/22 jun 15.06.2022.
+41 13E061LF Laboratorijske vežbe iz Fizike 1 obavezan predmet 9 2 2021/22 februar 07.02.2022.
+42 13E091EJ1 Engleski jezik 1 1 izborni predmet 10 2 2021/22 januar 22.01.2022.
+43 19E081MM1 Matematika 1 3 obavezan predmet 9 6 2021/22 januar 23.01.2022.
+44 19E071OE1 Osnovi elektrotehnike 1 3 obavezan predmet 10 6 2021/22 januar 30.01.2022.
+45 13E071PE1 Praktikum iz osnova elektrotehnike 1 1 izborni predmet 10 2 2021/22 januar 19.01.2022.

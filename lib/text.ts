@@ -28,8 +28,8 @@ export function normName(text: string): string {
 }
 
 const PERIOD_PREFIX: [string, Period][] = [
-  ["jan", "januar"], ["feb", "februar"], ["apr", "april"], ["jun", "jun"], ["jul", "jul"],
-  ["sep", "septembar"], ["okt", "oktobar"], ["oct", "oktobar"], ["nov", "novembar"],
+  ["jan", "januar"], ["feb", "februar"], ["apr", "april"], ["jun", "jun"], ["jul", "jul"], ["avg", "avgust"], ["aug", "avgust"],
+  ["sep", "septembar"], ["okt", "oktobar"], ["oct", "oktobar"], ["nov", "novembar"], ["dec", "decembar"],
 ];
 
 /** Normalize an exam period ("октобар-ОС", "Septembar", "jun") to a Period. Returns null if unknown. */

@@ -74,7 +74,12 @@ export async function handleExtract(body: unknown, clientKey: string, deps: Extr
     if (name === "AbortError" || name === "APIConnectionTimeoutError") {
       return err(502, "timeout", "Čitanje je trajalo predugo. Pokušaj ponovo ili pošalji kraći snimak ekrana.");
     }
-    return err(502, "upstream_error", "Servis za čitanje slika trenutno ne radi. Pokušaj ponovo ili nalepi tabelu kao tekst.");
+    // Surface Azure's status/code (never secrets) so configuration problems can be fixed.
+    const status = (e as { status?: number })?.status;
+    const code = (e as { code?: string; error?: { code?: string } })?.code ?? (e as { error?: { code?: string } })?.error?.code;
+    console.error("[extract] model call failed:", status, code, (e as Error)?.message);
+    const detail = [status, code].filter(Boolean).join(" ");
+    return err(502, "upstream_error", `Servis za čitanje slika trenutno ne radi${detail ? ` (Azure: ${detail})` : ""}. Pokušaj ponovo ili nalepi tabelu kao tekst.`);
   }
 
   let parsed: unknown;

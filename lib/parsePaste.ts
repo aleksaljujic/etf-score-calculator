@@ -3,7 +3,8 @@ import type { Period } from "./types.js";
 
 export interface PastedRow { name: string; ects: number; grade: number; period: Period; ay: number }
 
-const ROK_RE = /(\d{4})\/\d{2}\s*(\p{L}+)[^\s]*\s+(\d{1,2}\.\d{1,2}\.\d{4})\.?/gu;
+// "2023/24 октобар-ОС 14.09.2022." (FON) or "2024/25 октобар 2 27.10.2025." (ETF, numbered periods)
+const ROK_RE = /(\d{4})\/\d{2}\s*(\p{L}+)[^\s]*(?:\s+\d)?\s+(\d{1,2}\.\d{1,2}\.\d{4})\.?/gu;
 // JS \b is ASCII-only, so use a lookahead for Cyrillic words.
 const TYPE_RE = /\s+\d+\s+(обавезан|изборни|obavezan|izborni)(?=\s|$).*$/iu;
 
