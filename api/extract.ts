@@ -50,8 +50,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     d = getDeps();
   } catch (e) {
-    console.error("[extract] configuration error:", (e as Error).message);
-    return res.status(500).json({ error: "not_configured", message: "Čitanje slika nije podešeno na serveru. Nalepi tabelu kao tekst." });
+    const missing = ["AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_API_KEY", "AZURE_OPENAI_DEPLOYMENT"].filter((k) => !process.env[k]?.trim());
+    console.error("[extract] configuration error:", (e as Error).message, "missing:", missing.join(", "));
+    return res.status(500).json({
+      error: "not_configured",
+      message: `Čitanje slika nije podešeno na serveru (nedostaje: ${missing.join(", ") || "nepoznato"}). Nalepi tabelu kao tekst.`,
+    });
   }
   const body = typeof req.body === "string" ? safeJson(req.body) : req.body;
   const result = await handleExtract(body, clientIp(req), d);
