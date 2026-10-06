@@ -1,4 +1,4 @@
-export const PERIODS = ["januar", "februar", "april", "jun", "jul", "septembar", "oktobar", "novembar"] as const;
+export const PERIODS = ["januar", "februar", "april", "jun", "jul", "avgust", "septembar", "oktobar", "novembar", "decembar"] as const;
 export type Period = (typeof PERIODS)[number];
 export type Semester = "W" | "S"; // W = zimski (winter), S = letnji (summer)
 
