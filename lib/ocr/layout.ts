@@ -248,7 +248,9 @@ export function inferLayout(words: OcrWord[], pageWidth: number): Layout | null 
   else { const span = rokLeft - tipRight; espbX = rokLeft - span * 0.17; ocenaX = rokLeft - span * 0.45; }
   const half = Math.min(lineHeight * 1.6, (espbX - ocenaX) / 2);
   const col = (key: ColumnKey, left: number, right: number): Column => ({ key, x0: left, x1: right, left, right });
-  const nazivRight = tipLeft - lineHeight * 2.2; // the narrow "N.gr." column sits between Naziv and Tip
+  // The narrow "N.gr." column (1–4) sits between Naziv and Tip: end Naziv just before its digits.
+  const ngrW = words.filter((w) => /^[1-4]$/.test(t(w)) && cx(w) > codeRight && cx(w) < tipLeft && cx(w) > tipLeft - lineHeight * 4);
+  const nazivRight = ngrW.length >= 3 ? xs(ngrW, (w) => w.x0) - lineHeight * 0.5 : tipLeft - lineHeight * 2.2;
   const columns: Column[] = [
     col("akronim", 0, codeRight),
     col("naziv", codeRight, nazivRight),

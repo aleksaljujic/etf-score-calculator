@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applyCurriculum, candidates } from "../lib/curriculum.js";
-import { importExtraction, importPasted } from "../lib/importRows.js";
+import { importPasted } from "../lib/importRows.js";
 import type { ExamRow } from "../lib/types.js";
 
 const row = (name: string, sy: number | null = null, sem: "W" | "S" | null = null, ay = 2021): ExamRow => ({
@@ -54,13 +54,5 @@ describe("import pipeline", () => {
     expect(res.firstYear).toBe(2021);
     expect(res.rows[0]).toMatchObject({ sy: 1, sem: "W", syGuess: true, semGuess: true });
     expect(res.rows[1]).toMatchObject({ sy: 3, sem: "S" });
-  });
-  it("keeps the model's sure semester for a subject outside the curriculum", () => {
-    const res = importExtraction({
-      footer: { avg: null, ects: 6 },
-      rows: [{ rb: 1, name: "Izborni predmet van plana", ects: 6, grade: 10, period: "jun", acadYear: 2021, date: null, studyYear: 1, semester: "S", sureSemester: true }],
-    });
-    expect(res.rows[0]).toMatchObject({ sy: 1, sem: "S", semGuess: false, syGuess: true });
-    expect(res.footerEcts).toBe(6);
   });
 });

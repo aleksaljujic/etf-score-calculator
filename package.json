@@ -5,26 +5,22 @@
   "type": "module",
   "description": "ETF Belgrade master admission ranking score calculator",
   "scripts": {
-    "build": "esbuild src/app.ts --bundle --minify --format=iife --target=es2020 --outfile=public/app.js",
-    "dev": "vercel dev",
+    "build": "node scripts/copy-tesseract.mjs && esbuild src/app.ts --bundle --minify --format=iife --target=es2020 --outfile=public/app.js",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "ocr:check": "tsx scripts/ocr-check.ts",
+    "dev": "npm run build && npx serve public"
   },
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
     "@tesseract.js-data/srp": "^1.0.0",
-    "@upstash/ratelimit": "^2.2.0",
-    "@upstash/redis": "^1.39.0",
-    "openai": "^7.28.0",
     "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
     "@napi-rs/canvas": "^1.0.10",
-    "@tesseract.js-data/eng": "^1.0.0",
     "@types/node": "^26.6.4",
-    "@vercel/node": "^21.0.0",
     "esbuild": "^0.28.2",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",

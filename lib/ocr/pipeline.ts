@@ -321,8 +321,15 @@ export async function readScreenshot(engine: OcrEngine, img: ImageLike): Promise
       skipped++;
       return;
     }
-    // Fix OCR spelling by CER against the ETF course list.
-    const match = bestMatch(ocrName, COURSE_NAMES, (x) => x, 0.4);
+    // Fix OCR spelling by CER against the ETF course list. A stray group number ("N.gr.")
+    // can stick to the end of the name, so also try without a trailing single digit.
+    const variants = [ocrName];
+    const stripped = ocrName.replace(/\s+\d$/, "");
+    if (stripped !== ocrName && stripped) variants.push(stripped);
+    const match = variants
+      .map((v) => bestMatch(v, COURSE_NAMES, (x) => x, 0.4))
+      .filter((m): m is NonNullable<typeof m> => !!m)
+      .sort((a, b) => a.cer - b.cer)[0] ?? null;
     rows.push({ name: match ? match.item : ocrName, nameCorrected: !!match && match.cer > 0, ocrName, ects: ectsVal, grade, period, ay });
   });
 
