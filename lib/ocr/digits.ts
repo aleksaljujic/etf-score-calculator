@@ -168,6 +168,33 @@ export class DigitTemplates {
     return best;
   }
 
+  /** Distance of a glyph to one digit's template (Infinity if that digit was never learned). */
+  distanceTo(f: { v: Float32Array; aspect: number }, digit: string): number {
+    const t = this.sum.get(digit);
+    if (!t) return Infinity;
+    let d = 0;
+    for (let i = 0; i < f.v.length; i++) { const e = f.v[i] - t.v[i] / t.n; d += e * e; }
+    return Math.sqrt(d / f.v.length) + Math.abs(f.aspect - t.aspect / t.n) * 0.5;
+  }
+
+  /**
+   * Read a cell whose value must be one of `allowed` (e.g. ECTS ∈ {2, 3, 6, 12}, grade ∈ 6..10):
+   * picks the allowed value whose digits best match the glyphs. Null if nothing fits.
+   */
+  readOneOf(bm: Bitmap, allowed: readonly string[], maxDist = 0.45): string | null {
+    const g = glyphs(bm);
+    if (!g.length) return null;
+    const f = g.map((b) => features(bm, b));
+    let best: { v: string; d: number } | null = null;
+    for (const v of allowed) {
+      if (v.length !== f.length) continue;
+      let d = 0;
+      for (let i = 0; i < v.length; i++) d = Math.max(d, this.distanceTo(f[i], v[i]));
+      if (!best || d < best.d) best = { v, d };
+    }
+    return best && best.d <= maxDist ? best.v : null;
+  }
+
   /** Read a number from a cell bitmap; null if a glyph matches no template well. */
   read(bm: Bitmap, maxDist = 0.35): string | null {
     const g = glyphs(bm);

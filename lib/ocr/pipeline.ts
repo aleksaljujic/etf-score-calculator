@@ -250,6 +250,11 @@ function plausibleDate(digits: string): boolean {
   return d >= 1 && d <= 31 && m >= 1 && m <= 12 && y >= 2005 && y <= 2035;
 }
 
+/** Allowed values: grades 6–10; ECTS 2, 3 or 6 per course, 12 for the final thesis. */
+export const GRADES = ["6", "7", "8", "9", "10"] as const;
+export const ECTS_VALUES = ["2", "3", "6", "12"] as const; // ETF
+const ANY_ECTS = Array.from({ length: 15 }, (_, i) => String(i + 1)); // other faculties (FON has 3, 4, 5, 6 …)
+
 const COURSE_NAMES = [...new Set(Object.values(CURRICULUM.programs).flatMap((p) => p.courses.map((c) => c.name)))];
 const MONTH_OF_DATE: Record<number, Period> = { 1: "januar", 2: "februar", 4: "april", 6: "jun", 7: "jul", 8: "avgust", 9: "septembar", 10: "oktobar", 11: "novembar", 12: "decembar" };
 
@@ -271,6 +276,13 @@ export async function readScreenshot(engine: OcrEngine, img: ImageLike): Promise
 
   const dateCells = assignCells(layout, centers, dates);
 
+  const textCells = assignCells(layout, centers, words);
+  // Decide whether this is an ETF transcript: most names match the ETF curriculum closely.
+  const rawNames = textCells.map((c) => cleanName(cellText(c.naziv, lh)));
+  const strict = rawNames.filter((n) => bestMatch(n, COURSE_NAMES, (x) => x, 0.15)).length;
+  const pageText = words.map((w) => w.text).join(" ");
+  const isEtf = /електротехн|elektrotehn|естудент|estudent/i.test(pageText) || strict >= rawNames.length * 0.5;
+
   // Learn digit shapes from the dates, then read grades and ECTS by template matching.
   engine.progress?.("numbers");
   const templates = new DigitTemplates();
@@ -279,28 +291,29 @@ export async function readScreenshot(engine: OcrEngine, img: ImageLike): Promise
     const digits = cellText(dateCells[i].datum, lh).replace(/\D/g, "");
     if (img && plausibleDate(digits)) templates.learn(bitmapOf(img), digits);
   });
-  const readNumbers = async (key: ColumnKey) => {
+  const readNumbers = async (key: ColumnKey, allowed: readonly string[]) => {
     const imgs = cellCanvases(engine, page, layout, key, centers);
     const out: string[] = [];
     for (const img of imgs) {
-      const viaTemplate = img && templates.size >= 6 ? templates.read(bitmapOf(img)) : null;
-      out.push(viaTemplate ?? (await ocrCell(engine, img, lh, { psm: "8", whitelist: "0123456789" })));
+      // A short list of allowed values (ETF ECTS, grades) lets the best-fitting value win;
+      // otherwise only accept confident template matches and fall back to Tesseract.
+      const strict = allowed.length > 6;
+      const viaTemplate = img && templates.size >= 6
+        ? (strict ? templates.read(bitmapOf(img)) : templates.readOneOf(bitmapOf(img), allowed))
+        : null;
+      if (viaTemplate && allowed.includes(viaTemplate)) { out.push(viaTemplate); continue; }
+      const t = await ocrCell(engine, img, lh, { psm: "8", whitelist: "0123456789" });
+      const n = t.match(/\d+/)?.[0] ?? "";
+      out.push(allowed.includes(n) ? n : "");
     }
     return out;
   };
-  const gradeTexts = await readNumbers("ocena");
-  const ectsTexts = await readNumbers("espb");
+  const gradeTexts = await readNumbers("ocena", GRADES);
+  const ectsTexts = await readNumbers("espb", isEtf ? ECTS_VALUES : ANY_ECTS);
   const rokImgs = cellCanvases(engine, page, layout, "rok", centers);
   const rokTexts: string[] = [];
   for (const img of rokImgs) rokTexts.push(await ocrCell(engine, img, lh, { psm: "6" }));
 
-  const textCells = assignCells(layout, centers, words);
-
-  // Decide whether this is an ETF transcript: most names match the ETF curriculum closely.
-  const rawNames = textCells.map((c) => cleanName(cellText(c.naziv, lh)));
-  const strict = rawNames.filter((n) => bestMatch(n, COURSE_NAMES, (x) => x, 0.15)).length;
-  const pageText = words.map((w) => w.text).join(" ");
-  const isEtf = /електротехн|elektrotehn|естудент|estudent/i.test(pageText) || strict >= rawNames.length * 0.5;
 
   const rows: OcrRow[] = [];
   let skipped = 0;
@@ -315,7 +328,7 @@ export async function readScreenshot(engine: OcrEngine, img: ImageLike): Promise
     if (ay == null && date) ay = period === "novembar" || period === "decembar" ? date.year : date.year - 1;
     engine.debug?.({ i, ocrName, g: gradeTexts[i], e: ectsTexts[i], rokText, d: cellText(dateCells[i].datum, lh) });
 
-    if (!ocrName || grade == null || grade < 6 || grade > 10 || ectsVal == null || ectsVal < 1 || ectsVal > 30 || !period || ay == null) {
+    if (!ocrName || grade == null || grade < 6 || grade > 10 || ectsVal == null || !(isEtf ? (ECTS_VALUES as readonly string[]) : ANY_ECTS).includes(String(ectsVal)) || !period || ay == null) {
       skipped++;
       return;
     }
