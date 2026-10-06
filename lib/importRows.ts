@@ -9,10 +9,10 @@ export interface ImportResult {
   footerEcts: number | null;
 }
 
-function finish(rows: ExamRow[], faculty: string, footerEcts: number | null, fallbackYear: number): ImportResult {
+function finish(rows: ExamRow[], footerEcts: number | null, fallbackYear: number): ImportResult {
   const years = rows.map((r) => r.ay).filter((y) => Number.isFinite(y));
   const firstYear = years.length ? Math.min(...years) : fallbackYear;
-  const curriculum = applyCurriculum(rows, faculty);
+  const curriculum = applyCurriculum(rows);
   fillGuesses(rows, firstYear);
   return { rows, firstYear, curriculum, footerEcts };
 }
@@ -29,10 +29,10 @@ export function importExtraction(res: ExtractResponse, currentYear = new Date().
     syGuess: true,
     semGuess: !r.sureSemester,
   }));
-  return finish(rows, res.faculty, res.footer.ects, currentYear - 1);
+  return finish(rows, res.footer.ects, currentYear - 1);
 }
 
 export function importPasted(pasted: PastedRow[], currentYear = new Date().getFullYear()): ImportResult {
   const rows: ExamRow[] = pasted.map((r) => ({ ...r, sy: null, sem: null, syGuess: true, semGuess: true }));
-  return finish(rows, "", null, currentYear - 1);
+  return finish(rows, null, currentYear - 1);
 }

@@ -2,17 +2,15 @@ import { curriculumText } from "./curriculum.js";
 import { normPeriod, toLatin } from "./text.js";
 import type { ExtractResponse, ExtractedRow } from "./types.js";
 
-export const EXTRACT_PROMPT = `These images are screenshots of a Serbian university student portal page "Положени испити" (passed exams), possibly a long page split into overlapping slices, in order top to bottom. Columns: Р.Бр. (row number), Акроним, Назив (course name), Н.гр., Тип пријаве, Поени, Оцена (grade 6-10), ЕСПБ (ECTS), Рок (exam period, e.g. "2023/24 октобар-ОС"), Датум полагања (date), teacher.
+export const EXTRACT_PROMPT = `These images are screenshots of the "Положени испити" (passed exams) page of eStudent, the student portal of ETF Belgrade (Elektrotehnički fakultet, Univerzitet u Beogradu), possibly a long page split into overlapping slices, in order top to bottom. Columns: Р.Бр. (row number), Акроним, Назив (course name), Н.гр., Тип пријаве, Поени, Оцена (grade 6-10), ЕСПБ (ECTS: 2, 3 or 6, or 12 for the final thesis), Рок (exam period, e.g. "2024/25 октобар 2"), Датум полагања (date), teacher.
 
 Extract EVERY exam row exactly once (slices overlap; use the row number to avoid duplicates). Also read the footer line with average grade and total ECTS if visible.
 
-For each row also GUESS which study year (1-4) and semester the course belongs to in the curriculum: use your knowledge of the faculty's curriculum (identify the faculty from the page header if possible), the course name (e.g. "Математика 1" is year 1 winter, "2" usually summer), and when it was passed. Winter semester exams are first held in januar, summer semester exams in jun. A course passed late (jul, septembar, oktobar or in a later year) still belongs to its original semester. Set "sureSemester" true only if you are fairly confident.
+For each row set the study year (1-4) and semester of the course using the official ETF curriculum below: first decide which program/module best matches the student's courses, then look each course up in it (ER students share the "1. godina" list). For courses not in the list, guess from the course name and when it was passed: winter semester exams are first held in januar, summer semester exams in jun; a course passed late still belongs to its original semester. Set "sureSemester" true only for courses found in the curriculum.
 
 Reply with ONLY this JSON:
-{"faculty":"short name or empty","rows":[{"rb":1,"name":"course name transliterated to Serbian Latin","ects":6,"grade":7,"period":"januar|februar|april|jun|jul|avgust|septembar|oktobar|novembar|decembar","acadYear":2025,"date":"2026-09-03","studyYear":4,"semester":"W|S","sureSemester":false}],"footer":{"avg":8.74,"ects":231}}
+{"rows":[{"rb":1,"name":"course name transliterated to Serbian Latin","ects":6,"grade":7,"period":"januar|februar|april|jun|jul|avgust|septembar|oktobar|novembar|decembar","acadYear":2025,"date":"2026-09-03","studyYear":4,"semester":"W|S","sureSemester":false}],"footer":{"avg":8.89,"ects":228}}
 acadYear is the FIRST year of the academic year in the Рок column (2025/26 -> 2025). Numbered periods like "октобар 2" or "септембар 2" are just the month ("oktobar", "septembar"). Use null for anything unreadable.
-
-If the screenshot is from ETF Beograd (Elektrotehnički fakultet), use this official curriculum to set studyYear and semester. First decide which program/module best matches the student's courses, then look each course up in it (ETF ER students share the 1. godina list). For matches set sureSemester true.
 `;
 
 export function buildPrompt(): string {
@@ -70,7 +68,6 @@ export function normalizeExtraction(raw: unknown): ExtractResponse {
   const rows = [...seen.values()].sort((a, b) => (a.rb ?? 1e9) - (b.rb ?? 1e9));
   const footer = (obj.footer && typeof obj.footer === "object" ? obj.footer : {}) as Record<string, unknown>;
   return {
-    faculty: typeof obj.faculty === "string" ? obj.faculty : "",
     rows,
     footer: { avg: num(footer.avg), ects: num(footer.ects) },
   };

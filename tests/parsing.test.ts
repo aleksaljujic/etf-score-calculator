@@ -4,19 +4,19 @@ import { normalizeExtraction, parseModelJson, buildPrompt } from "../lib/extract
 import { normPeriod, toLatin } from "../lib/text.js";
 
 const PASTE = `Р.Бр.	Акроним	Назив	Н.гр.	Тип пријаве	Поени	Оцена	ЕСПБ	Рок	Датум полагања	Потписао наставник
-1	140033	Пројектовање софтвера	1	обавезан предмет		7	6	2025/26 септембар-ОС	03.09.2026.	Синиша Влајић
-2	140034	Интелигентни системи	1	обавезан предмет	91,00	10	6	2025/26 јун-ОС	20.06.2026.	Бојан Томић
-4	И14127	Увод у неуронске мреже	1	изборни предмет		10	4	2024/25 октобар-ОС	26.10.2025.	Александар Ракићевић
-17	140003	Математика 3	1	обавезан предмет		9	6	2023/24 јун-ОС	09.07.2024.	Оливера Михић
-Просечна оцена 8,74 Збир ЕСПБ поена 231`;
+1	13Е054ОПГ	Обрада и препознавање говора	1	изборни предмет		7	6	2025/26 август	04.09.2026.	Жељко Ђуровић
+4	19Е033МАП	Мрежна администрација и програмирање	1	изборни предмет		10	6	2024/25 октобар 2	27.10.2025.	Зоран Чича
+7	13Е044ДОС	Дигитална обрада слике	1	изборни предмет	73,00	8	6	2024/25 септембар 2	27.09.2025.	Драгомир Ел Мезени
+27	13Е082М3	Математика 3	1	обавезан предмет		9	6	2022/23 фебруар	04.02.2023.	Синиша Јешић
+Просечна оцена 8,89 Збир ЕСПБ поена 228`;
 
 describe("parsePastedTable", () => {
-  it("reads the copied portal table", () => {
+  it("reads the table copied from eStudent", () => {
     expect(parsePastedTable(PASTE)).toEqual([
-      { name: "Projektovanje softvera", ects: 6, grade: 7, period: "septembar", ay: 2025 },
-      { name: "Inteligentni sistemi", ects: 6, grade: 10, period: "jun", ay: 2025 },
-      { name: "Uvod u neuronske mreže", ects: 4, grade: 10, period: "oktobar", ay: 2024 },
-      { name: "Matematika 3", ects: 6, grade: 9, period: "jun", ay: 2023 },
+      { name: "Obrada i prepoznavanje govora", ects: 6, grade: 7, period: "avgust", ay: 2025 },
+      { name: "Mrežna administracija i programiranje", ects: 6, grade: 10, period: "oktobar", ay: 2024 },
+      { name: "Digitalna obrada slike", ects: 6, grade: 8, period: "septembar", ay: 2024 },
+      { name: "Matematika 3", ects: 6, grade: 9, period: "februar", ay: 2022 },
     ]);
   });
   it("works when everything is on one line", () => {
@@ -54,7 +54,6 @@ describe("parseModelJson", () => {
 describe("normalizeExtraction", () => {
   it("coerces, deduplicates by row number and sorts", () => {
     const out = normalizeExtraction({
-      faculty: "FON",
       rows: [
         { rb: 2, name: "Б", ects: "6", grade: 11, period: "јун-ОС", acadYear: 2023, studyYear: 9, semester: "S" },
         { rb: 1, name: "A", ects: 6, grade: 7, period: "januar", acadYear: 2022, studyYear: 1, semester: "W", sureSemester: true },
@@ -64,13 +63,12 @@ describe("normalizeExtraction", () => {
       ],
       footer: { avg: "8,74", ects: 12 },
     });
-    expect(out.faculty).toBe("FON");
     expect(out.rows.map((r) => r.name)).toEqual(["A", "B"]);
     expect(out.rows[1]).toMatchObject({ grade: 10, period: "jun", studyYear: null, sureSemester: false });
     expect(out.footer).toEqual({ avg: 8.74, ects: 12 });
   });
   it("handles garbage input", () => {
-    expect(normalizeExtraction(null)).toEqual({ faculty: "", rows: [], footer: { avg: null, ects: null } });
+    expect(normalizeExtraction(null)).toEqual({ rows: [], footer: { avg: null, ects: null } });
   });
 });
 

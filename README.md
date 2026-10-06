@@ -2,7 +2,7 @@
 
 Web app that calculates the ranking score **p** for master admission at ETF Belgrade (Elektrotehnički fakultet, Univerzitet u Beogradu) for candidates with 240 ECTS.
 
-A student uploads a screenshot of the "Položeni ispiti" page from their student portal. A serverless function sends it to an Azure OpenAI vision model, which returns every exam as JSON. The app looks up each subject's year and semester in the official ETF curriculum, computes the stimulation factor r from when each exam was passed, and calculates p. Without a screenshot, the student can paste the copied table as text; that path needs no API.
+A student uploads a screenshot of the "Položeni ispiti" page from ETF eStudent. The app is for ETF students only. A serverless function sends it to an Azure OpenAI vision model, which returns every exam as JSON. The app looks up each subject's year and semester in the official ETF curriculum, computes the stimulation factor r from when each exam was passed, and calculates p. Without a screenshot, the student can paste the copied table as text; that path needs no API.
 
 ```
 p = Σ eᵢ(1+rᵢ)oᵢ / ESUM + (2 − M/M₀) − 2D
