@@ -33,7 +33,6 @@ export interface OcrResult {
   rows: OcrRow[];
   skipped: number;
   footerEcts: number | null;
-  isEtf: boolean;
 }
 
 export class OcrLayoutError extends Error {}
@@ -252,8 +251,7 @@ function plausibleDate(digits: string): boolean {
 
 /** Allowed values: grades 6–10; ECTS 2, 3 or 6 per course, 12 for the final thesis. */
 export const GRADES = ["6", "7", "8", "9", "10"] as const;
-export const ECTS_VALUES = ["2", "3", "6", "12"] as const; // ETF
-const ANY_ECTS = Array.from({ length: 15 }, (_, i) => String(i + 1)); // other faculties (FON has 3, 4, 5, 6 …)
+export const ECTS_VALUES = ["2", "3", "6", "12"] as const;
 
 const COURSE_NAMES = [...new Set(Object.values(CURRICULUM.programs).flatMap((p) => p.courses.map((c) => c.name)))];
 const MONTH_OF_DATE: Record<number, Period> = { 1: "januar", 2: "februar", 4: "april", 6: "jun", 7: "jul", 8: "avgust", 9: "septembar", 10: "oktobar", 11: "novembar", 12: "decembar" };
@@ -265,7 +263,6 @@ export async function readScreenshot(engine: OcrEngine, img: ImageLike): Promise
   const words = await engine.recognize(page, { psm: "6" });
   const layout = findLayout(words) ?? inferLayout(words, page.width);
   if (!layout) throw new OcrLayoutError("Tabela položenih ispita nije prepoznata na slici.");
-  engine.debug?.({ layout: layout.columns.map((c) => `${c.key}:${Math.round(c.left)}-${Math.round(c.right)}`).join(" "), lh: layout.lineHeight, page: page.width });
   const lh = layout.lineHeight;
 
   engine.progress?.("rows");
@@ -277,11 +274,7 @@ export async function readScreenshot(engine: OcrEngine, img: ImageLike): Promise
   const dateCells = assignCells(layout, centers, dates);
 
   const textCells = assignCells(layout, centers, words);
-  // Decide whether this is an ETF transcript: most names match the ETF curriculum closely.
   const rawNames = textCells.map((c) => cleanName(cellText(c.naziv, lh)));
-  const strict = rawNames.filter((n) => bestMatch(n, COURSE_NAMES, (x) => x, 0.15)).length;
-  const pageText = words.map((w) => w.text).join(" ");
-  const isEtf = /електротехн|elektrotehn|естудент|estudent/i.test(pageText) || strict >= rawNames.length * 0.5;
 
   // Learn digit shapes from the dates, then read grades and ECTS by template matching.
   engine.progress?.("numbers");
@@ -295,12 +288,8 @@ export async function readScreenshot(engine: OcrEngine, img: ImageLike): Promise
     const imgs = cellCanvases(engine, page, layout, key, centers);
     const out: string[] = [];
     for (const img of imgs) {
-      // A short list of allowed values (ETF ECTS, grades) lets the best-fitting value win;
-      // otherwise only accept confident template matches and fall back to Tesseract.
-      const strict = allowed.length > 6;
-      const viaTemplate = img && templates.size >= 6
-        ? (strict ? templates.read(bitmapOf(img)) : templates.readOneOf(bitmapOf(img), allowed))
-        : null;
+      // Only a few values are possible (ECTS 2/3/6/12, grades 6–10): the best-fitting one wins.
+      const viaTemplate = img && templates.size >= 6 ? templates.readOneOf(bitmapOf(img), allowed) : null;
       if (viaTemplate && allowed.includes(viaTemplate)) { out.push(viaTemplate); continue; }
       const t = await ocrCell(engine, img, lh, { psm: "8", whitelist: "0123456789" });
       const n = t.match(/\d+/)?.[0] ?? "";
@@ -309,7 +298,7 @@ export async function readScreenshot(engine: OcrEngine, img: ImageLike): Promise
     return out;
   };
   const gradeTexts = await readNumbers("ocena", GRADES);
-  const ectsTexts = await readNumbers("espb", isEtf ? ECTS_VALUES : ANY_ECTS);
+  const ectsTexts = await readNumbers("espb", ECTS_VALUES);
   const rokImgs = cellCanvases(engine, page, layout, "rok", centers);
   const rokTexts: string[] = [];
   for (const img of rokImgs) rokTexts.push(await ocrCell(engine, img, lh, { psm: "6" }));
@@ -328,13 +317,14 @@ export async function readScreenshot(engine: OcrEngine, img: ImageLike): Promise
     if (ay == null && date) ay = period === "novembar" || period === "decembar" ? date.year : date.year - 1;
     engine.debug?.({ i, ocrName, g: gradeTexts[i], e: ectsTexts[i], rokText, d: cellText(dateCells[i].datum, lh) });
 
-    if (!ocrName || grade == null || grade < 6 || grade > 10 || ectsVal == null || !(isEtf ? (ECTS_VALUES as readonly string[]) : ANY_ECTS).includes(String(ectsVal)) || !period || ay == null) {
+    if (!ocrName || grade == null || grade < 6 || grade > 10 || ectsVal == null || !(ECTS_VALUES as readonly string[]).includes(String(ectsVal)) || !period || ay == null) {
       skipped++;
       return;
     }
-    const match = isEtf ? bestMatch(ocrName, COURSE_NAMES, (x) => x, 0.3) : null;
+    // Fix OCR spelling by CER against the ETF course list.
+    const match = bestMatch(ocrName, COURSE_NAMES, (x) => x, 0.4);
     rows.push({ name: match ? match.item : ocrName, nameCorrected: !!match && match.cer > 0, ocrName, ects: ectsVal, grade, period, ay });
   });
 
-  return { rows, skipped, footerEcts: readFooterEcts(words, lh), isEtf };
+  return { rows, skipped, footerEcts: readFooterEcts(words, lh) };
 }

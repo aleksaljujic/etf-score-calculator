@@ -38,5 +38,5 @@ const img = await loadImage(file);
 let res; try { res = await readScreenshot(engine, img as any); } finally { if (flag === "--dump" && dumpPath) writeFileSync(dumpPath, JSON.stringify({ width: img.width, height: img.height, passes: dumps })); }
 await worker.terminate();
 const esum = res.rows.reduce((s, r) => s + r.ects, 0);
-console.log(JSON.stringify({ ms: Date.now() - t0, rows: res.rows.length, skipped: res.skipped, esum, footer: res.footerEcts, isEtf: res.isEtf }));
+console.log(JSON.stringify({ ms: Date.now() - t0, rows: res.rows.length, skipped: res.skipped, esum, footer: res.footerEcts }));
 for (const r of res.rows) console.log(`${r.grade}\t${r.ects}\t${r.ay}\t${r.period}\t${r.name}${r.nameCorrected ? `   ← "${r.ocrName}"` : ""}`);
