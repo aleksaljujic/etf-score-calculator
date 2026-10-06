@@ -1,7 +1,6 @@
 import { computeScore, type RReason } from "../lib/formula.js";
 import { importPasted, type ImportResult } from "../lib/importRows.js";
-import { OcrLayoutError, readScreenshot, type ImageLike, type OcrRow } from "../lib/ocr/pipeline.js";
-import { normName } from "../lib/text.js";
+import { OcrLayoutError, readScreenshots, type ImageLike } from "../lib/ocr/pipeline.js";
 import { browserEngine, stopOcr } from "./ocrEngine.js";
 import { parsePastedTable } from "../lib/parsePaste.js";
 import { PERIODS, type AppState, type ExamRow } from "../lib/types.js";
@@ -188,8 +187,6 @@ const STEP: Record<string, string> = {
 let running = false;
 let cancelled = false;
 
-const rowKey = (r: OcrRow) => `${normName(r.name)}|${r.ay}|${r.period}|${r.grade}|${r.ects}`;
-
 async function handleFiles(list: FileList | File[]) {
   const files = [...list].filter((f) => /^image\//.test(f.type));
   if (!files.length) { setStatus("Izaberi sliku (PNG ili JPG snimak ekrana).", "bad"); return; }
@@ -205,26 +202,19 @@ async function handleFiles(list: FileList | File[]) {
   running = true;
   cancelled = false;
   $("stop").hidden = false;
-  const rows: OcrRow[] = [];
-  const seen = new Set<string>();
-  let footer: number | null = null;
-  let skipped = 0;
   try {
-    for (let i = 0; i < files.length; i++) {
-      const prefix = files.length > 1 ? `Slika ${i + 1}/${files.length}: ` : "";
-      setStatus(prefix + "Učitavam OCR (prvi put oko 5 MB)…");
-      const bmp = await createImageBitmap(files[i]);
-      if (bmp.width < 700) {
-        setStatus(`${prefix}Slika je premala (${bmp.width} px). Pošalji originalni snimak ili zumiraj tabelu.`, "bad");
-        continue;
-      }
-      const engine = browserEngine((step) => setStatus(prefix + (STEP[step] ?? "Čitam") + "…"));
-      const res = await readScreenshot(engine, bmp as unknown as ImageLike);
-      if (cancelled) return;
-      for (const r of res.rows) { const k = rowKey(r); if (!seen.has(k)) { seen.add(k); rows.push(r); } }
-      footer = res.footerEcts ?? footer;
-      skipped += res.skipped;
+    setStatus("Učitavam OCR (prvi put oko 5 MB)…");
+    const imgs: ImageLike[] = [];
+    for (const f of files) {
+      const bmp = await createImageBitmap(f);
+      if (bmp.width < 700) { setStatus(`Slika je premala (${bmp.width} px). Pošalji originalni snimak ili zumiraj tabelu.`, "bad"); return; }
+      imgs.push(bmp as unknown as ImageLike);
     }
+    let prefix = "";
+    const engine = browserEngine((step) => setStatus(prefix + (STEP[step] ?? "Čitam") + "…"));
+    const res = await readScreenshots(engine, imgs, (i) => { prefix = files.length > 1 ? `Slika ${i + 1}/${files.length}: ` : ""; });
+    if (cancelled) return;
+    const rows = res.rows, footer = res.footerEcts, skipped = res.skipped;
     if (!rows.length) {
       setStatus("Na slici nije pronađen nijedan ispit. Pošalji jasniji snimak tabele „Položeni ispiti” ili nalepi tabelu kao tekst.", "bad");
       $<HTMLDetailsElement>("pasteBox").open = true;

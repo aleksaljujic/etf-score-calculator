@@ -8,6 +8,7 @@ import { CURRICULUM } from "../curriculum.js";
 import { bestMatch } from "../fuzzy.js";
 import type { PastedRow } from "../parsePaste.js";
 import type { Period } from "../types.js";
+import { normName } from "../text.js";
 import { DigitTemplates, features, glyphs, toBitmap, type Bitmap } from "./digits.js";
 import {
   assignCells, cellInt, inferLayout, cellText, cleanName, column, findLayout, findRowCenters, readAcadYear, readDate,
@@ -256,7 +257,21 @@ export const ECTS_VALUES = ["2", "3", "6", "12"] as const;
 const COURSE_NAMES = [...new Set(Object.values(CURRICULUM.programs).flatMap((p) => p.courses.map((c) => c.name)))];
 const MONTH_OF_DATE: Record<number, Period> = { 1: "januar", 2: "februar", 4: "april", 6: "jun", 7: "jul", 8: "avgust", 9: "septembar", 10: "oktobar", 11: "novembar", 12: "decembar" };
 
-export async function readScreenshot(engine: OcrEngine, img: ImageLike): Promise<OcrResult> {
+/** Everything read from one screenshot before its numbers are matched (see {@link finishScreenshot}). */
+export interface Analysis {
+  page: CanvasLike;
+  layout: Layout;
+  centers: number[];
+  words: OcrWord[];
+  textCells: ReturnType<typeof assignCells>;
+  dateCells: ReturnType<typeof assignCells>;
+}
+
+/**
+ * First pass: find the table, its rows and dates, and teach `templates` the digit shapes from the dates.
+ * With several screenshots, run this on all of them first so every image benefits from all the dates.
+ */
+export async function analyzeScreenshot(engine: OcrEngine, img: ImageLike, templates: DigitTemplates): Promise<Analysis> {
   engine.progress?.("prepare");
   const page = prepare(engine, img);
   engine.progress?.("text");
@@ -272,18 +287,20 @@ export async function readScreenshot(engine: OcrEngine, img: ImageLike): Promise
   if (!centers.length) throw new OcrLayoutError("Redovi tabele nisu pronađeni.");
 
   const dateCells = assignCells(layout, centers, dates);
-
   const textCells = assignCells(layout, centers, words);
-  const rawNames = textCells.map((c) => cleanName(cellText(c.naziv, lh)));
-
-  // Learn digit shapes from the dates, then read grades and ECTS by template matching.
-  engine.progress?.("numbers");
-  const templates = new DigitTemplates();
-  const dateImgs = cellCanvases(engine, page, layout, "datum", centers);
-  dateImgs.forEach((img, i) => {
+  cellCanvases(engine, page, layout, "datum", centers).forEach((cell, i) => {
     const digits = cellText(dateCells[i].datum, lh).replace(/\D/g, "");
-    if (img && plausibleDate(digits)) templates.learn(bitmapOf(img), digits);
+    if (cell && plausibleDate(digits)) templates.learn(bitmapOf(cell), digits);
   });
+  return { page, layout, centers, words, textCells, dateCells };
+}
+
+/** Second pass: read grades, ECTS and exam periods, and build the rows. */
+export async function finishScreenshot(engine: OcrEngine, a: Analysis, templates: DigitTemplates): Promise<OcrResult> {
+  const { page, layout, centers, words, textCells, dateCells } = a;
+  const lh = layout.lineHeight;
+  const rawNames = textCells.map((c) => cleanName(cellText(c.naziv, lh)));
+  engine.progress?.("numbers");
   const readNumbers = async (key: ColumnKey, allowed: readonly string[]) => {
     const imgs = cellCanvases(engine, page, layout, key, centers);
     const out: string[] = [];
@@ -302,7 +319,6 @@ export async function readScreenshot(engine: OcrEngine, img: ImageLike): Promise
   const rokImgs = cellCanvases(engine, page, layout, "rok", centers);
   const rokTexts: string[] = [];
   for (const img of rokImgs) rokTexts.push(await ocrCell(engine, img, lh, { psm: "6" }));
-
 
   const rows: OcrRow[] = [];
   let skipped = 0;
@@ -334,4 +350,33 @@ export async function readScreenshot(engine: OcrEngine, img: ImageLike): Promise
   });
 
   return { rows, skipped, footerEcts: readFooterEcts(words, lh) };
+}
+
+/** One screenshot on its own. */
+export async function readScreenshot(engine: OcrEngine, img: ImageLike): Promise<OcrResult> {
+  const templates = new DigitTemplates();
+  return finishScreenshot(engine, await analyzeScreenshot(engine, img, templates), templates);
+}
+
+/** Several screenshots of the same table (e.g. zoomed parts): shared digit templates, merged rows. */
+export async function readScreenshots(
+  engine: OcrEngine, imgs: ImageLike[], onImage?: (i: number, phase: "analyze" | "finish") => void,
+): Promise<OcrResult> {
+  const templates = new DigitTemplates();
+  const analyses: Analysis[] = [];
+  for (let i = 0; i < imgs.length; i++) { onImage?.(i, "analyze"); analyses.push(await analyzeScreenshot(engine, imgs[i], templates)); }
+  const rows: OcrRow[] = [];
+  const seen = new Set<string>();
+  let skipped = 0, footerEcts: number | null = null;
+  for (let i = 0; i < analyses.length; i++) {
+    onImage?.(i, "finish");
+    const r = await finishScreenshot(engine, analyses[i], templates);
+    for (const row of r.rows) {
+      const key = `${normName(row.name)}|${row.ay}|${row.period}|${row.grade}|${row.ects}`;
+      if (!seen.has(key)) { seen.add(key); rows.push(row); }
+    }
+    skipped += r.skipped;
+    footerEcts = r.footerEcts ?? footerEcts;
+  }
+  return { rows, skipped, footerEcts };
 }
